@@ -1,0 +1,175 @@
+1. tambahkan kolom baru di tabel user bawaan laravel yg bertanda panah
+$table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+          ->$table->tinyInteger('type')->default(0);
+          ->$table->string('image')->default('user.png');
+            $table->rememberToken();
+            $table->timestamps();
+
+2. buat function baru di HomeController
+
+public function upload(Request $request)
+    {
+        if($request->hasFile('image')){
+            $filename = $request->image->getClientOriginalName();
+            $request->image->storeAs('images',$filename,'public');
+            Auth()->user()->update(['image'=>$filename]);
+        }
+        return redirect()->back();
+    }
+}
+
+3.buat direktori penyimpanan file
+
+php artisan storage:link
+
+4.tambahkan data pada Model:User
+ protected $fillable = [
+        'name',
+        'email',
+        'password',
+      ->'type',
+      ->'image',
+    ];
+
+5. buat middleware baru dengan nama UserAccess
+
+php artisan make:middleware UserAccess
+
+6. dalam UserAccess tambahkan data berikut:
+
+public function handle(Request $request, Closure $next, $usertType)
+    {
+        if(auth()->user()->type == $userType){
+            return $next($request);
+        }
+           
+        return response()->json(['You do not have permission to access for this page.']);
+        /* return response()->view('errors.check-permission'); */
+    }
+
+7. pada kernel.php yang berada di Http/Controller/Kernel pada bagian "protected $routeMiddleware"
+
+'user-access' => \App\Http\Middleware\UserAccess::class,
+
+8. tambahkan Route baru di Web.php dan kita buat group untuk setiap hal akses routenya:
+
+/*------------------------------------------
+--------------------------------------------
+Group untuk route user
+--------------------------------------------
+--------------------------------------------*/
+Route::middleware(['auth', 'user-access:user'])->group(function () {
+  
+    Route::get('/home', [HomeController::class, 'index'])->name('home');
+    Route::post('/home', [HomeController::class, 'upload'])->name('home');
+    // Route::post('/manager/home', [HomeController::class, 'upload'])->name('manager.home');
+    // Route::post('/pegawai/home', [HomeController::class, 'upload'])->name('pegawai.home');
+});
+  
+/*------------------------------------------
+--------------------------------------------
+Group untuk route admin
+--------------------------------------------
+--------------------------------------------*/
+Route::middleware(['auth', 'user-access:admin'])->group(function () {
+  
+    Route::get('/admin/home', [HomeController::class, 'adminHome'])->name('admin.home');
+    Route::post('/admin/home', [HomeController::class, 'upload'])->name('admin.home');
+    Route::get('/admin/profile', [HomeController::class, 'adminProfile'])->name('admin.profile');
+});
+  
+/*------------------------------------------
+--------------------------------------------
+Group untuk route manager
+--------------------------------------------
+--------------------------------------------*/
+Route::middleware(['auth', 'user-access:manager'])->group(function () {
+  
+    Route::get('/manager/home', [HomeController::class, 'managerHome'])->name('manager.home');
+    Route::post('/manager/home', [HomeController::class, 'upload'])->name('manager.home');
+});
+
+/*------------------------------------------
+--------------------------------------------
+Group untuk route pegawai
+--------------------------------------------
+--------------------------------------------*/
+Route::middleware(['auth', 'user-access:pegawai'])->group(function () {
+  
+    Route::get('/pegawai/home', [HomeController::class, 'pegawaiHome'])->name('pegawai.home');
+    Route::post('/pegawai/home', [HomeController::class, 'upload'])->name('pegawai.home');
+});
+
+9. buat folder baru untuk memasukkan file web agar tidak tercampur sesuai dengan object yang dibuat misal('admin','manager','pegawai','user')
+pada Resource/View/("nama folder")
+contoh: 
+di dalam folder admin kita isikan ('adminHome.blade.php','adminProfile.blade.php')
+di dalam folder manager kita isikan ('managerHome.blade.php','managerProfile.blade.php')
+di dalam folder pegawai kita isikan ('pegawaiHome.blade.php','pegawaiProfile.blade.php')
+
+10. pada HomeController di Http\Controllers\HomeController kita tambahkan
+
+untuk admin
+
+a. public function adminHome()
+  {
+   return view('admin.adminHome')
+  }
+
+penjelasan:
+pada return view ('admin,adminHome') ini menjelaskan "admin" adalah nama foldernya dan "adminHome" file web yang berada di dalam folder admin
+
+untuk no 10 point a silahakn di lanjut sesuai dengan kebutuhan file yang dibutuhkan
+
+11. kita buat seeder untuk kita masukkan data ke database. karena seeder adalah data uji coba untuk tes koneksi DB kelaravel dan sistem
+AUTHnya berjalan atau tidak
+
+a. php artisan make:seeder CreateUsersSeeder
+b. buat data di dalam public function run()
+	$users = [
+            [
+               'name'=>'Admin User',
+               'email'=>'admin@bisnis.com',
+               'type'=>1,
+               'password'=> bcrypt('12345678'),
+            ],
+            [
+               'name'=>'Manager User',
+               'email'=>'manager@bisnis.com',
+               'type'=> 2,
+               'password'=> bcrypt('12345678'),
+            ],
+            [
+                'name'=>'Pegawai User',
+                'email'=>'pegawai@bisnis.com',
+                'type'=> 3,
+                'password'=> bcrypt('12345678'),
+             ],
+            [
+               'name'=>'User',
+               'email'=>'user@bisnis.com',
+               'type'=>0,
+               'password'=> bcrypt('12345678'),
+            ],
+        ];
+    
+        foreach ($users as $key => $user) {
+            User::create($user);
+        }
+    }
+c. setelah selesai ketikan perintah
+  - php artisan migrate:fresh
+  - php artisan db:seed --class=CreateUsersSeeder
+
+12. terakhir buat desain file web setiap objek dan jalankan dengan perintah
+
+public function managerHome()
+    {
+        return view('manager.managerHome');
+    }
+
+13. lalu php artisan serve
